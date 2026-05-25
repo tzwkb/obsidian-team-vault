@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Obsidian Team Vault — 管理员操作手册</title>
+<style>
+  :root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#c9d1d9;--accent:#58a6ff;--warn:#d29922;--danger:#f85149;--green:#3fb950}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;line-height:1.6;padding:2rem;max-width:900px;margin:0 auto}
+  h1{font-size:1.8rem;border-bottom:1px solid var(--border);padding-bottom:.5rem;margin-bottom:1.5rem}
+  h2{font-size:1.3rem;margin:2rem 0 .8rem;color:var(--accent)}
+  h3{font-size:1.05rem;margin:1.2rem 0 .5rem}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:1.2rem;margin:1rem 0}
+  code{background:#1c2128;padding:.15em .4em;border-radius:3px;font-size:.9em}
+  pre{background:#1c2128;border:1px solid var(--border);border-radius:6px;padding:1rem;overflow-x:auto;font-size:.85em;line-height:1.5}
+  .cmd{color:var(--green)}
+  .warn{color:var(--warn)}
+  table{width:100%;border-collapse:collapse;margin:1rem 0}
+  th,td{border:1px solid var(--border);padding:.5rem .8rem;text-align:left}
+  th{background:var(--card)}
+  ul,ol{margin-left:1.5rem}
+  li{margin:.3rem 0}
+  hr{border:0;border-top:1px solid var(--border);margin:2rem 0}
+</style>
+</head>
+<body>
+
+<h1>Obsidian Team Vault<br>管理员操作手册</h1>
+
+<h2>零、每次开机</h2>
+<div class="card">
+<ol>
+  <li>打开 <strong>Obsidian</strong></li>
+  <li>打开终端窗口1 — 代理服务</li>
+  <li>打开终端窗口2 — 隧道</li>
+</ol>
+</div>
+<p>窗口1：</p>
+<pre>cd ~/macobisidian && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000</pre>
+<p>窗口2：</p>
+<pre>cloudflared tunnel --url http://localhost:8000</pre>
+<p>窗口2 打印的公网地址记下来通知团队。</p>
+<p class="warn">两个窗口不能关。地址每次重启会变。</p>
+
+<h2>一、获取公网地址</h2>
+<pre>grep "trycloudflare.com" ~/macobisidian/tunnel.log | tail -1</pre>
+
+<h2>二、用户审批</h2>
+
+<h3>待审列表</h3>
+<pre>curl https://&lt;地址&gt;/admin/pending \
+  -H "Authorization: Bearer admintoken"</pre>
+
+<h3>审批通过</h3>
+<pre>curl -X POST https://&lt;地址&gt;/admin/approve/&lt;用户id&gt; \
+  -H "Authorization: Bearer admintoken" \
+  -H "Content-Type: application/json" \
+  -d '{"role": "reader"}'</pre>
+<p>返回 <code>{"token":"xxx"}</code>，发给该用户。</p>
+
+<h3>拒绝申请</h3>
+<pre>curl -X POST https://&lt;地址&gt;/admin/reject/&lt;用户id&gt; \
+  -H "Authorization: Bearer admintoken"</pre>
+
+<table>
+  <tr><th>角色</th><th>权限</th></tr>
+  <tr><td><code>reader</code></td><td>只读</td></tr>
+  <tr><td><code>editor</code></td><td>读写</td></tr>
+  <tr><td><code>admin</code></td><td>全部 + 管理，Token 可直接读写 Vault</td></tr>
+</table>
+
+<h2>三、用户管理</h2>
+<h3>所有用户</h3>
+<pre>curl https://&lt;地址&gt;/admin/users \
+  -H "Authorization: Bearer admintoken"</pre>
+<h3>撤销用户</h3>
+<pre>curl -X DELETE https://&lt;地址&gt;/admin/revoke/&lt;用户id&gt; \
+  -H "Authorization: Bearer admintoken"</pre>
+
+<h2>四、管理员读写 Vault</h2>
+<p>管理员 Token 可直接操作 Obsidian：</p>
+<pre>curl https://&lt;地址&gt;/vault/笔记路径.md \
+  -H "Authorization: Bearer admintoken"</pre>
+
+<h2>五、管理员 Token</h2>
+<p><code>~/macobisidian/.env</code> 中的 <code>ADMIN_TOKEN</code>，当前为 <code>admintoken</code>。修改后重启窗口1。</p>
+
+<h2>六、安全</h2>
+<ul>
+  <li>管理员 Token 不发给普通用户</li>
+  <li>离职立即撤销</li>
+  <li>窗口关闭即停服务</li>
+</ul>
+
+<hr>
+
+<h1>开发文档</h1>
+
+<h2>架构</h2>
+<pre>客户端 ──HTTPS──→ Cloudflare Tunnel ──→ Auth Proxy (:8000) ──→ Obsidian REST API (:27124)
+                                            │
+                                        users.db</pre>
+
+<h2>文件清单</h2>
+<table>
+  <tr><th>文件</th><th>作用</th></tr>
+  <tr><td><code>main.py</code></td><td>代理：注册、鉴权、角色控制、转发</td></tr>
+  <tr><td><code>.env</code></td><td>OBSIDIAN_URL / OBSIDIAN_API_KEY / ADMIN_TOKEN</td></tr>
+  <tr><td><code>users.db</code></td><td>SQLite，首次运行自动创建</td></tr>
+</table>
+
+<h2>权限模型</h2>
+<pre>reader  → GET
+editor  → GET PUT POST PATCH DELETE
+admin   → 全部 + /admin/* + 可直接用 Token 读写 Vault</pre>
+
+<h2>API</h2>
+
+<h3>公开</h3>
+<pre>POST /register             提交申请</pre>
+
+<h3>用户（需 Token）</h3>
+<pre>GET    /                       健康检查
+GET    /vault/{path}           读文件
+PUT    /vault/{path}           写文件
+POST   /vault/{path}           追加
+PATCH  /vault/{path}           定向编辑
+DELETE /vault/{path}           删除
+POST   /search/simple/?query=  搜索</pre>
+
+<h3>管理员（需 ADMIN_TOKEN）</h3>
+<pre>GET    /admin/pending          待审列表
+GET    /admin/users            所有用户
+POST   /admin/approve/{id}     审批+生成Token
+POST   /admin/reject/{id}      拒绝申请
+DELETE /admin/revoke/{id}      撤销用户</pre>
+
+<h2>users.db 表结构</h2>
+<pre>id             INTEGER PK
+name           TEXT
+purpose        TEXT
+requested_role TEXT
+role           TEXT
+token          TEXT UNIQUE
+status         TEXT       -- pending | approved | rejected | revoked
+created_at     TIMESTAMP</pre>
+
+<h2>鉴权流程</h2>
+<ol>
+  <li>POST /register → status=pending</li>
+  <li>POST /admin/approve/{id} → 生成 token, status=approved</li>
+  <li>Proxy: token 匹配 ADMIN_TOKEN → 直接放行；否则查 users.db → 匹配 role → 匹配 method → 转发</li>
+  <li>DELETE /admin/revoke/{id} → token 置 NULL, status=revoked</li>
+</ol>
+
+<h2>扩展</h2>
+<ul>
+  <li>加角色：改 <code>ROLE_METHODS</code> 和 <code>Role</code> enum</li>
+  <li>加管理员接口：写在 <code>/{path:path}</code> catch-all 之前</li>
+  <li>加通知：在 register/approve 路由中插入 webhook</li>
+</ul>
+
+<h2>依赖</h2>
+<p>Python 3.9+, fastapi, uvicorn, httpx, python-dotenv, pydantic</p>
+
+</body>
+</html>
