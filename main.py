@@ -5,6 +5,8 @@ import httpx
 import sqlite3
 import secrets
 import os
+import logging
+from datetime import datetime, timezone
 from pydantic import BaseModel
 from enum import Enum
 
@@ -18,6 +20,21 @@ DB_PATH = os.getenv("DB_PATH", "users.db")
 if not ADMIN_TOKEN:
     ADMIN_TOKEN = secrets.token_urlsafe(32)
     print(f"[WARN] ADMIN_TOKEN not set in .env, generated: {ADMIN_TOKEN}")
+
+LOG_PATH = os.getenv("LOG_PATH", "proxy.log")
+_log = logging.getLogger("audit")
+_log.setLevel(logging.INFO)
+_fh = logging.FileHandler(LOG_PATH)
+_fh.setFormatter(logging.Formatter("%(message)s"))
+_log.addHandler(_fh)
+
+
+def _audit(ip: str, user: str, role: str, method: str, path: str, status: int):
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _log.info(f"{ts} {ip} [{role}] {user} {method} /{path} -> {status}")
+
+
+ALLOWED_PATH_PREFIXES = ("vault", "search", "mcp")
 
 ROLE_METHODS = {
     "reader": {"GET"},
@@ -119,7 +136,7 @@ def list_users(_=Depends(verify_admin)):
 
 
 @app.post("/admin/approve/{user_id}")
-def approve(user_id: int, req: ApproveRequest, _=Depends(verify_admin)):
+def approve(user_id: int, req: ApproveRequest, request: Request, _=Depends(verify_admin)):
     new_token = secrets.token_urlsafe(32)
     conn = get_db()
     result = conn.execute(
@@ -130,11 +147,12 @@ def approve(user_id: int, req: ApproveRequest, _=Depends(verify_admin)):
     conn.close()
     if result.rowcount == 0:
         raise HTTPException(404, "用户不存在或已处理")
+    _audit(request.client.host, "admin", "admin", "APPROVE", f"user/{user_id} role={req.role}", 200)
     return {"token": new_token, "role": req.role}
 
 
 @app.post("/admin/reject/{user_id}")
-def reject(user_id: int, _=Depends(verify_admin)):
+def reject(user_id: int, request: Request, _=Depends(verify_admin)):
     conn = get_db()
     result = conn.execute(
         "UPDATE users SET status='rejected' WHERE id=? AND status='pending'", (user_id,)
@@ -143,37 +161,58 @@ def reject(user_id: int, _=Depends(verify_admin)):
     conn.close()
     if result.rowcount == 0:
         raise HTTPException(404, "用户不存在或已处理")
+    _audit(request.client.host, "admin", "admin", "REJECT", f"user/{user_id}", 200)
     return {"message": "已拒绝"}
 
 
 @app.delete("/admin/revoke/{user_id}")
-def revoke(user_id: int, _=Depends(verify_admin)):
+def revoke(user_id: int, request: Request, _=Depends(verify_admin)):
     conn = get_db()
     conn.execute(
         "UPDATE users SET status='revoked', token=NULL WHERE id=?", (user_id,)
     )
     conn.commit()
     conn.close()
+    _audit(request.client.host, "admin", "admin", "REVOKE", f"user/{user_id}", 200)
     return {"message": "已撤销"}
+
+
+@app.get("/admin/logs")
+def get_logs(request: Request, n: int = 200, _=Depends(verify_admin)):
+    try:
+        with open(LOG_PATH) as f:
+            lines = f.readlines()
+        return {"lines": [l.rstrip() for l in lines[-n:]]}
+    except FileNotFoundError:
+        return {"lines": []}
 
 
 @app.api_route("/{path:path}", methods=["GET", "PUT", "POST", "PATCH", "DELETE"])
 async def proxy(path: str, request: Request,
                 credentials: HTTPAuthorizationCredentials = Depends(security)):
+    ip = request.client.host
+
     if credentials.credentials == ADMIN_TOKEN:
-        user = {"role": "admin"}
+        user_name, user_role = "admin", "admin"
     else:
         user = get_user_by_token(credentials.credentials)
         if not user:
+            _audit(ip, "unknown", "-", request.method, path, 401)
             raise HTTPException(401, "无效 Token")
+        user_name, user_role = user["name"], user["role"]
 
-    allowed = ROLE_METHODS.get(user["role"], set())
+    allowed = ROLE_METHODS.get(user_role, set())
     if request.method not in allowed:
-        # MCP protocol uses POST for all calls; allow POST to /mcp/* even for GET-only roles
         if request.method == "POST" and (path == "mcp" or path.startswith("mcp/")):
             pass
         else:
-            raise HTTPException(403, f"{user['role']} 不允许 {request.method}")
+            _audit(ip, user_name, user_role, request.method, path, 403)
+            raise HTTPException(403, f"{user_role} 不允许 {request.method}")
+
+    if user_role != "admin":
+        if not any(path == p or path.startswith(p + "/") for p in ALLOWED_PATH_PREFIXES):
+            _audit(ip, user_name, user_role, request.method, path, 403)
+            raise HTTPException(403, f"路径 /{path} 不允许访问")
 
     body = await request.body()
     headers = {k: v for k, v in request.headers.items()
@@ -189,6 +228,7 @@ async def proxy(path: str, request: Request,
             params=dict(request.query_params),
         )
 
+    _audit(ip, user_name, user_role, request.method, path, resp.status_code)
     return Response(
         content=resp.content,
         status_code=resp.status_code,
