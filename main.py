@@ -34,6 +34,11 @@ def _audit(ip: str, user: str, role: str, method: str, path: str, status: int):
     _log.info(f"{ts} {ip} [{role}] {user} {method} /{path} -> {status}")
 
 
+def _parse_log_ts(line: str) -> datetime:
+    ts_str = line.split(" ")[0]
+    return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+
+
 ALLOWED_PATH_PREFIXES = ("vault", "search", "mcp")
 
 ROLE_METHODS = {
@@ -178,13 +183,21 @@ def revoke(user_id: int, request: Request, _=Depends(verify_admin)):
 
 
 @app.get("/admin/logs")
-def get_logs(request: Request, n: int = 200, _=Depends(verify_admin)):
+def get_logs(request: Request, n: int = 200, since: str = None, _=Depends(verify_admin)):
     try:
         with open(LOG_PATH) as f:
-            lines = f.readlines()
-        return {"lines": [l.rstrip() for l in lines[-n:]]}
+            lines = [l.rstrip() for l in f.readlines()]
     except FileNotFoundError:
         return {"lines": []}
+
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            lines = [l for l in lines if _parse_log_ts(l) >= since_dt]
+        except ValueError:
+            raise HTTPException(400, "since 格式无效，请使用 ISO 8601，如 2026-05-25T10:00:00Z")
+
+    return {"lines": lines[-n:]}
 
 
 @app.api_route("/{path:path}", methods=["GET", "PUT", "POST", "PATCH", "DELETE"])
