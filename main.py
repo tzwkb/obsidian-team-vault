@@ -39,7 +39,7 @@ def _parse_log_ts(line: str) -> datetime:
     return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
 
 
-ALLOWED_PATH_PREFIXES = ("vault", "search", "mcp")
+ALLOWED_PATH_PREFIXES = ("vault", "search")
 
 ROLE_METHODS = {
     "reader": {"GET"},
@@ -216,11 +216,8 @@ async def proxy(path: str, request: Request,
 
     allowed = ROLE_METHODS.get(user_role, set())
     if request.method not in allowed:
-        if request.method == "POST" and (path == "mcp" or path.startswith("mcp/")):
-            pass
-        else:
-            _audit(ip, user_name, user_role, request.method, path, 403)
-            raise HTTPException(403, f"{user_role} 不允许 {request.method}")
+        _audit(ip, user_name, user_role, request.method, path, 403)
+        raise HTTPException(403, f"{user_role} 不允许 {request.method}")
 
     if user_role != "admin":
         if not any(path == p or path.startswith(p + "/") for p in ALLOWED_PATH_PREFIXES):
