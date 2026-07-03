@@ -1,7 +1,9 @@
 # obsidian-team-vault
 
-[English](README.md) | 中文
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.x-blue.svg)](https://www.python.org/)
 
+[English](README.md) | 中文
 
 Mac Mini 作为服务器，提供团队共享 Obsidian Vault 的 HTTPS API。内置注册 / 审批 / 三级权限 / Token 鉴权。
 
