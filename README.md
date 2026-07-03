@@ -1,6 +1,6 @@
 # obsidian-team-vault
 
-[中文](README_ZH.md) | English
+English | [中文](README_ZH.md)
 
 
 ## Overview
@@ -27,7 +27,7 @@
 
 ## Command and Configuration Reference
 
-The following code blocks are preserved from the primary README. Commands, paths, and configuration keys are not translated; adjust them for the actual environment.
+The following code blocks keep commands, paths, filenames, and configuration keys literal; explanatory comments are translated for the English README.
 
 ```
 客户端 ──HTTPS──→ Cloudflare Tunnel ──→ Auth Proxy (:8000) ──→ Obsidian REST API (:27124)
