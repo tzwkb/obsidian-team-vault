@@ -19,10 +19,6 @@ English | [中文](README_ZH.md)
 
  Follow the deployment and API configuration notes below to start the service and configure users/permissions.
 
-## Status
-
- This repository is maintained or used according to the current README notes.
-
 ## Notes
 
  Public README content should not contain real tokens or private Vault content.
@@ -44,7 +40,3 @@ cd ~/macobisidian && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
 # Window 2 - public tunnel
 cloudflared tunnel --url http://localhost:8000
 ```
-
-## Detailed Technical Notes
-
-This README keeps the English version of the core documentation. Code blocks, paths, commands, and file-layout examples are kept literal so they can be copied and checked against the repository.
