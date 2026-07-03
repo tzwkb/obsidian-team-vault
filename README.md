@@ -1,5 +1,44 @@
 # obsidian-team-vault
 
+<!-- bilingual-readme:start -->
+
+## 双语说明 / Bilingual Documentation
+
+> 本节提供整篇 README 的中英双语维护说明；下方保留原始详细说明、命令、路径和配置示例。
+> This section provides bilingual maintenance notes for the full README; the original detailed notes, commands, paths, and configuration examples are preserved below.
+
+### 中文
+
+**概览**：团队共享 Obsidian Vault 的 HTTPS API 和管理工具，支持注册、审批、权限和 Token 鉴权。
+
+**主要能力**：
+- 将 Mac Mini 作为团队 Vault 服务端。
+- 提供注册、审批和三级权限控制。
+- 通过 REST API 管理团队知识库访问。
+
+**使用方式**：按下方部署和 API 配置说明启动服务、配置用户和权限。
+
+**状态**：该仓库仍按当前 README 的说明维护或使用。
+
+**注意事项**：公开 README 不应包含真实 token 或私有 Vault 内容。
+
+### English
+
+**Overview**: HTTPS API and management tool for a shared team Obsidian Vault, with registration, approval, permissions, and token authentication.
+
+**Key capabilities**:
+- Uses a Mac Mini as the team Vault server.
+- Provides registration, approval, and three-level permission control.
+- Manages team knowledge-base access through a REST API.
+
+**Usage**: Follow the deployment and API configuration notes below to start the service and configure users/permissions.
+
+**Status**: This repository is maintained or used according to the current README notes.
+
+**Notes**: Public README content should not contain real tokens or private Vault content.
+
+<!-- bilingual-readme:end -->
+
 Mac Mini 作为服务器，提供团队共享 Obsidian Vault 的 HTTPS API。内置注册 / 审批 / 三级权限 / Token 鉴权。
 
 ## 架构
