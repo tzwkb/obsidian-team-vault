@@ -30,16 +30,16 @@ English | [中文](README_ZH.md)
 The following code blocks keep commands, paths, filenames, and configuration keys literal; explanatory comments are translated for the English README.
 
 ```
-客户端 ──HTTPS──→ Cloudflare Tunnel ──→ Auth Proxy (:8000) ──→ Obsidian REST API (:27124)
+Client ──HTTPS──→ Cloudflare Tunnel ──→ Auth Proxy (:8000) ──→ Obsidian REST API (:27124)
                                             │
                                         users.db (SQLite)
 ```
 
 ```
-# 窗口1 — 代理服务
+# Window 1 - proxy service
 cd ~/macobisidian && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
 
-# 窗口2 — 公网隧道
+# Window 2 - public tunnel
 cloudflared tunnel --url http://localhost:8000
 ```
 
